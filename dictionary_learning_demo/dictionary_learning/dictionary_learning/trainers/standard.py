@@ -27,8 +27,6 @@ def square_weighted_c2r_loss(feature_acts, decoder_weight, alpha=1.0, tau=1.0, l
 
     feature_norms = feature_acts.norm(p=2, dim=0)
 
-    Q_tau = None
-
     lif loss_type == 'topTauPerFeat' or loss_type == 'topTauPerFeatSquare':
         pass
     else:
