@@ -8,7 +8,7 @@ from typing import Optional
 from ..trainers.trainer import SAETrainer, get_lr_schedule, get_sparsity_warmup_fn, ConstrainedAdam
 from ..config import DEBUG
 from ..dictionary import GatedAutoEncoder
-from ..trainers.standard import square_weighted_c2r_loss
+from ..trainers.standard import compute_c2r_loss
 from collections import namedtuple
 
 class GatedSAETrainer(SAETrainer):
@@ -24,10 +24,8 @@ class GatedSAETrainer(SAETrainer):
                  dict_class = GatedAutoEncoder,
                  lr: float = 5e-5,
                  l1_penalty: float = 1e-1,
-                 swc2r_penalty: float = 0.0,
-                 swc2r_alpha: float = 1.0,
-                 swc2r_tau: float = 0.95,
-                 swc2r_type: str = "topTauPerFeatSquare",
+                 c2r_penalty: float = 0.0,
+                 c2r_alpha: float = 1.0,
                  warmup_steps: int = 1000,
                  sparsity_warmup_steps: Optional[int] = 2000,
                  decay_start:Optional[int]=None,
@@ -65,10 +63,8 @@ class GatedSAETrainer(SAETrainer):
 
         self.lr = lr
         self.l1_penalty=l1_penalty
-        self.swc2r_penalty = swc2r_penalty
-        self.swc2r_alpha = swc2r_alpha
-        self.swc2r_tau = swc2r_tau
-        self.swc2r_type = swc2r_type
+        self.c2r_penalty = c2r_penalty
+        self.c2r_alpha = c2r_alpha
         self.warmup_steps = warmup_steps
         self.sparsity_warmup_steps = sparsity_warmup_steps
         self.decay_start = decay_start
@@ -108,11 +104,11 @@ class GatedSAETrainer(SAETrainer):
         loss = L_recon + (self.l1_penalty * L_sparse * sparsity_scale) + L_aux
 
 
-        if self.swc2r_penalty > 0:
-            swc2r_loss = square_weighted_c2r_loss(f_gate, self.ae.decoder.weight.T, self.swc2r_alpha, self.swc2r_tau, self.swc2r_type)
-            loss += self.swc2r_penalty * swc2r_loss
+        if self.c2r_penalty > 0:
+            c2r_loss = compute_c2r_loss(f_gate, self.ae.decoder.weight.T, self.c2r_alpha)
+            loss += self.c2r_penalty * c2r_loss
         else:
-            swc2r_loss = t.tensor(0.0)
+            c2r_loss = t.tensor(0.0)
 
         
 
@@ -125,7 +121,7 @@ class GatedSAETrainer(SAETrainer):
                     'mse_loss' : L_recon.item(),
                     'sparsity_loss' : L_sparse.item(),
                     'aux_loss' : L_aux.item(),
-                    'swc2r_loss' : swc2r_loss.item(),
+                    'c2r_loss' : c2r_loss.item(),
                     'loss' : loss.item()
                 }
             )
@@ -147,10 +143,8 @@ class GatedSAETrainer(SAETrainer):
             'dict_size' : self.ae.dict_size,
             'lr' : self.lr,
             'l1_penalty' : self.l1_penalty,
-            'swc2r_penalty' : self.swc2r_penalty,
-            'swc2r_alpha' : self.swc2r_alpha,
-            'swc2r_tau' : self.swc2r_tau,
-            'swc2r_type' : self.swc2r_type,
+            'c2r_penalty' : self.c2r_penalty,
+            'c2r_alpha' : self.c2r_alpha,
             'warmup_steps' : self.warmup_steps,
             'sparsity_warmup_steps' : self.sparsity_warmup_steps,
             'decay_start' : self.decay_start,

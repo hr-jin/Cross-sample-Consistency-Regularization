@@ -9,28 +9,24 @@ from ..config import DEBUG
 from ..dictionary import AutoEncoder
 from collections import namedtuple
 
-def square_weighted_c2r_loss(feature_acts, decoder_weight, alpha=1.0, tau=1.0, loss_type='topTauPerFeatSquare'):
+def compute_c2r_loss(feature_acts, decoder_weight, alpha=1.0):
     """
-    Calculates the C2R+ loss or the original SWC2R loss depending on loss_type.
+    Calculates the Cross-sample Consistency Regularization (C2R) loss.
+
+    For each latent, finds its most directionally-similar neighbor in the
+    dictionary and penalizes their co-activation, weighted by the summed
+    batch activation norms of the pair.
 
     Args:
         feature_acts: [Batch, d_dict] - Sparse activations
         decoder_weight: [d_dict, d_model] - Decoder weights
         alpha: exponent for the weight term (suggested 1.0)
     """
-    if loss_type in ['topTauPerFeat', 'topTauPerFeatSquare'] and tau != 1:
-        raise ValueError(f"tau must be 1 for loss_type {loss_type}, got {tau}")
-
     W_norm = t.nn.functional.normalize(decoder_weight, p=2, dim=1)
     d_dict = W_norm.shape[0]
     device = decoder_weight.device
 
     feature_norms = feature_acts.norm(p=2, dim=0)
-
-    lif loss_type == 'topTauPerFeat' or loss_type == 'topTauPerFeatSquare':
-        pass
-    else:
-        raise ValueError(f"Unknown loss_type: {loss_type}")
 
     total_loss = 0.0
     chunk_size = 8192
@@ -50,10 +46,7 @@ def square_weighted_c2r_loss(feature_acts, decoder_weight, alpha=1.0, tau=1.0, l
         n_chunk = feature_norms[chunk_indices]
 
         max_vals, max_inds = sim_chunk.max(dim=1)
-        max_vals = max_vals.clamp(min=0)
-
-        if loss_type == 'topTauPerFeatSquare':
-            max_vals = max_vals.pow(2)
+        max_vals = max_vals.clamp(min=0).pow(2)
 
         n_neighbors = n_chunk[max_inds]
 
@@ -79,10 +72,8 @@ class StandardTrainer(SAETrainer):
                  dict_class=AutoEncoder,
                  lr:float=1e-3,
                  l1_penalty:float=1e-1,
-                 swc2r_penalty:float=0.0,
-                 swc2r_alpha:float=1.0,
-                 swc2r_tau:float=0.95,
-                 swc2r_type:str='topTauPerFeatSquare',
+                 c2r_penalty:float=0.0,
+                 c2r_alpha:float=1.0,
                  aux_loss_start_step:int=0,
                  aux_loss_interval:int=1,
                  warmup_steps:int=1000,
@@ -104,10 +95,8 @@ class StandardTrainer(SAETrainer):
         self.lm_name = lm_name
         self.submodule_name = submodule_name
         self.l1_penalty = l1_penalty
-        self.swc2r_penalty = swc2r_penalty
-        self.swc2r_alpha = swc2r_alpha
-        self.swc2r_tau = swc2r_tau
-        self.swc2r_type = swc2r_type
+        self.c2r_penalty = c2r_penalty
+        self.c2r_alpha = c2r_alpha
         self.aux_loss_start_step = aux_loss_start_step
         self.aux_loss_interval = aux_loss_interval
         self.buffer_tokens = buffer_tokens
@@ -201,11 +190,11 @@ class StandardTrainer(SAETrainer):
                 apply_aux_loss = True
                 aux_loss_multiplier = float(self.aux_loss_interval)
 
-        if self.swc2r_penalty > 0 and apply_aux_loss:
-            swc2r_loss = square_weighted_c2r_loss(f, self.ae.decoder.weight.T, alpha=self.swc2r_alpha, tau=self.swc2r_tau, loss_type=self.swc2r_type)
-            loss += self.swc2r_penalty * swc2r_loss * aux_loss_multiplier
+        if self.c2r_penalty > 0 and apply_aux_loss:
+            c2r_loss = compute_c2r_loss(f, self.ae.decoder.weight.T, alpha=self.c2r_alpha)
+            loss += self.c2r_penalty * c2r_loss * aux_loss_multiplier
         else:
-            swc2r_loss = t.tensor(0.0)
+            c2r_loss = t.tensor(0.0)
 
 
         if not logging:
@@ -217,7 +206,7 @@ class StandardTrainer(SAETrainer):
                     'l2_loss' : l2_loss.item(),
                     'mse_loss' : recon_loss.item(),
                     'sparsity_loss' : l1_loss.item(),
-                    'swc2r_loss' : swc2r_loss.item(),
+                    'c2r_loss' : c2r_loss.item(),
                     'loss' : loss.item()
                 }
             )
@@ -244,10 +233,8 @@ class StandardTrainer(SAETrainer):
             'dict_size': self.ae.dict_size,
             'lr' : self.lr,
             'l1_penalty' : self.l1_penalty,
-            'swc2r_penalty' : self.swc2r_penalty,
-            'swc2r_alpha' : self.swc2r_alpha,
-            'swc2r_tau' : self.swc2r_tau,
-            'swc2r_type' : self.swc2r_type,
+            'c2r_penalty' : self.c2r_penalty,
+            'c2r_alpha' : self.c2r_alpha,
             'aux_loss_start_step' : self.aux_loss_start_step,
             'aux_loss_interval' : self.aux_loss_interval,
             'warmup_steps' : self.warmup_steps,
@@ -280,10 +267,8 @@ class StandardTrainerAprilUpdate(SAETrainer):
                  dict_class=AutoEncoder,
                  lr:float=1e-3,
                  l1_penalty:float=1e-1,
-                 swc2r_penalty:float=0.0,
-                 swc2r_alpha:float=1.0,
-                 swc2r_tau:float=0.95,
-                 swc2r_type:str='topTauPerFeatSquare',
+                 c2r_penalty:float=0.0,
+                 c2r_alpha:float=1.0,
                  aux_loss_start_step:int=0,
                  aux_loss_interval:int=1,
                  warmup_steps:int=1000,
@@ -305,10 +290,8 @@ class StandardTrainerAprilUpdate(SAETrainer):
         self.submodule_name = submodule_name
         self.lr = lr
         self.l1_penalty = l1_penalty
-        self.swc2r_penalty = swc2r_penalty
-        self.swc2r_alpha = swc2r_alpha
-        self.swc2r_tau = swc2r_tau
-        self.swc2r_type = swc2r_type
+        self.c2r_penalty = c2r_penalty
+        self.c2r_alpha = c2r_alpha
         self.aux_loss_start_step = aux_loss_start_step
         self.aux_loss_interval = aux_loss_interval
         self.warmup_steps = sparsity_warmup_steps
@@ -356,11 +339,11 @@ class StandardTrainerAprilUpdate(SAETrainer):
                 apply_aux_loss = True
                 aux_loss_multiplier = float(self.aux_loss_interval)
 
-        if self.swc2r_penalty > 0 and apply_aux_loss:
-            swc2r_loss = square_weighted_c2r_loss(f, self.ae.decoder.weight.T, alpha=self.swc2r_alpha, tau=self.swc2r_tau, loss_type=self.swc2r_type)
-            loss += self.swc2r_penalty * swc2r_loss * aux_loss_multiplier
+        if self.c2r_penalty > 0 and apply_aux_loss:
+            c2r_loss = compute_c2r_loss(f, self.ae.decoder.weight.T, alpha=self.c2r_alpha)
+            loss += self.c2r_penalty * c2r_loss * aux_loss_multiplier
         else:
-            swc2r_loss = t.tensor(0.0)
+            c2r_loss = t.tensor(0.0)
 
         if not logging:
             return loss
@@ -371,7 +354,7 @@ class StandardTrainerAprilUpdate(SAETrainer):
                     'l2_loss' : l2_loss.item(),
                     'mse_loss' : recon_loss.item(),
                     'sparsity_loss' : l1_loss.item(),
-                    'swc2r_loss' : swc2r_loss.item(),
+                    'c2r_loss' : c2r_loss.item(),
                     'loss' : loss.item()
                 }
             )
@@ -397,10 +380,8 @@ class StandardTrainerAprilUpdate(SAETrainer):
             'dict_size': self.ae.dict_size,
             'lr' : self.lr,
             'l1_penalty' : self.l1_penalty,
-            'swc2r_penalty' : self.swc2r_penalty,
-            'swc2r_alpha' : self.swc2r_alpha,
-            'swc2r_tau' : self.swc2r_tau,
-            'swc2r_type' : self.swc2r_type,
+            'c2r_penalty' : self.c2r_penalty,
+            'c2r_alpha' : self.c2r_alpha,
             'aux_loss_start_step' : self.aux_loss_start_step,
             'aux_loss_interval' : self.aux_loss_interval,
             'warmup_steps' : self.warmup_steps,

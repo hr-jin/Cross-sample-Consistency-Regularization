@@ -13,7 +13,7 @@ from ..trainers.trainer import (
     set_decoder_norm_to_unit_norm,
     remove_gradient_parallel_to_decoder_directions,
 )
-from ..trainers.standard import square_weighted_c2r_loss
+from ..trainers.standard import compute_c2r_loss
 
 
 class RectangleFunction(autograd.Function):
@@ -85,10 +85,8 @@ class JumpReluTrainer(nn.Module, SAETrainer):
         lr: float = 7e-5,
         bandwidth: float = 0.001,
         sparsity_penalty: float = 1.0,
-        swc2r_penalty: float = 0.0,
-        swc2r_alpha: float = 1.0,
-        swc2r_tau: float = 0.95,
-        swc2r_type: str = "topTauPerFeatSquare",
+        c2r_penalty: float = 0.0,
+        c2r_alpha: float = 1.0,
         warmup_steps: int = 1000,
         sparsity_warmup_steps: Optional[int] = 2000,
         decay_start: Optional[int] = None,
@@ -115,10 +113,8 @@ class JumpReluTrainer(nn.Module, SAETrainer):
 
         self.bandwidth = bandwidth
         self.sparsity_coefficient = sparsity_penalty
-        self.swc2r_penalty = swc2r_penalty
-        self.swc2r_alpha = swc2r_alpha
-        self.swc2r_tau = swc2r_tau
-        self.swc2r_type = swc2r_type
+        self.c2r_penalty = c2r_penalty
+        self.c2r_alpha = c2r_alpha
         self.warmup_steps = warmup_steps
         self.sparsity_warmup_steps = sparsity_warmup_steps
         self.decay_start = decay_start
@@ -184,11 +180,11 @@ class JumpReluTrainer(nn.Module, SAETrainer):
         loss = recon_loss + sparsity_loss
 
 
-        if self.swc2r_penalty > 0:
-            swc2r_loss = square_weighted_c2r_loss(f, self.ae.W_dec.T, self.swc2r_alpha, self.swc2r_tau, self.swc2r_type)
-            loss += self.swc2r_penalty * swc2r_loss
+        if self.c2r_penalty > 0:
+            c2r_loss = compute_c2r_loss(f, self.ae.W_dec.T, self.c2r_alpha)
+            loss += self.c2r_penalty * c2r_loss
         else:
-            swc2r_loss = torch.tensor(0.0)
+            c2r_loss = torch.tensor(0.0)
 
         if not logging:
             return loss
@@ -199,7 +195,7 @@ class JumpReluTrainer(nn.Module, SAETrainer):
                 f,
                 {
                     "l2_loss": recon_loss.item(),
-                    "swc2r_loss": swc2r_loss.item(),
+                    "c2r_loss": c2r_loss.item(),
                     "loss": loss.item(),
                 },
             )
@@ -241,10 +237,8 @@ class JumpReluTrainer(nn.Module, SAETrainer):
             "submodule_name": self.submodule_name,
             "bandwidth": self.bandwidth,
             "sparsity_penalty": self.sparsity_coefficient,
-            "swc2r_penalty": self.swc2r_penalty,
-            "swc2r_alpha": self.swc2r_alpha,
-            "swc2r_tau": self.swc2r_tau,
-            "swc2r_type": self.swc2r_type,
+            "c2r_penalty": self.c2r_penalty,
+            "c2r_alpha": self.c2r_alpha,
             "sparsity_warmup_steps": self.sparsity_warmup_steps,
             "target_l0": self.target_l0,
             "buffer_tokens": self.buffer_tokens,

@@ -98,7 +98,7 @@ commands=(
     # "python demo.py --save_dir trained_saes_icml_v11_500M_2048_${DATASET_NAME}_80_100_120 --model_name $MODEL_2B --layers $LAYERS_2B --sae_batch_size 2048 --architectures  batch_top_k --device 'cuda:1' --use_wandb --wandb_project icml_v11_500M_${DATASET_NAME} --num_tokens 500000000 --target_gb $TARGET_GB --target_l0s '[80,100,120]'   --dtype 'float32' $DATASET_ARG"
     # "python demo.py --save_dir trained_saes_icml_v11_500M_2048_${DATASET_NAME}_80_100_120 --model_name $MODEL_2B --layers $LAYERS_2B --sae_batch_size 2048 --architectures  matryoshka_batch_top_k --device 'cuda:2' --use_wandb --wandb_project icml_v11_500M_${DATASET_NAME} --num_tokens 500000000 --target_gb $TARGET_GB --target_l0s '[80,100,120]'   --dtype 'float32' $DATASET_ARG"
     # "python demo.py --save_dir trained_saes_icml_v11_500M_2048_${DATASET_NAME}_80_100_120 --model_name $MODEL_2B --layers $LAYERS_2B --sae_batch_size 2048 --architectures  ort --device 'cuda:3' --use_wandb --wandb_project icml_v11_500M_${DATASET_NAME} --num_tokens 500000000 --target_gb $TARGET_GB --target_l0s '[80,100,120]'   --dtype 'float32' $DATASET_ARG --aux_loss_start_step 0 --aux_loss_interval 5"
-    "python demo.py --save_dir trained_saes_icml_v11-6_500M_2048_${DATASET_NAME}_60 --model_name $MODEL_2B --layers $LAYERS_2B --sae_batch_size 2048 --architectures  batch_top_k --device 'cuda:4' --use_wandb --wandb_project icml_v11_500M_${DATASET_NAME} --num_tokens 500000000 --target_gb $TARGET_GB --target_l0s '[60]' --lambda_swc2r '[5]' --swc2r_alpha 1 --swc2r_tau 1.0 --swc2r_type "topTauPerFeatSquare" --dtype 'float32' $DATASET_ARG --aux_loss_start_step 0 --aux_loss_interval 5"
+    "python demo.py --save_dir trained_saes_icml_v11-6_500M_2048_${DATASET_NAME}_60 --model_name $MODEL_2B --layers $LAYERS_2B --sae_batch_size 2048 --architectures  batch_top_k --device 'cuda:4' --use_wandb --wandb_project icml_v11_500M_${DATASET_NAME} --num_tokens 500000000 --target_gb $TARGET_GB --target_l0s '[60]' --lambda_c2r '[5]' --c2r_alpha 1 --dtype 'float32' $DATASET_ARG --aux_loss_start_step 0 --aux_loss_interval 5"
 )
 
 # ==========================================
@@ -175,34 +175,19 @@ for i in "${!commands[@]}"; do
     }
 
     process_lambda "c2r" "lambda_c2r"
-    process_lambda "wc2r" "lambda_wc2r"
-    process_lambda "swc2r" "lambda_swc2r"
-    process_lambda "sli" "lambda_sli"
-    process_lambda "asg" "lambda_asg"
 
-    # Process swc2r_alpha parameter
-    SWC2R_ALPHA_VAL=$(echo "$CMD" | grep -oP "(?<=--swc2r_alpha )[^ ]+" || true)
-    if [ -n "$SWC2R_ALPHA_VAL" ]; then
+    # Process c2r_alpha parameter
+    C2R_ALPHA_VAL=$(echo "$CMD" | grep -oP "(?<=--c2r_alpha )[^ ]+" || true)
+    if [ -n "$C2R_ALPHA_VAL" ]; then
         # Convert integer to float format (e.g., 2 -> 2.0, 3 -> 3.0)
-        if [[ "$SWC2R_ALPHA_VAL" =~ ^[0-9]+$ ]]; then
-            SWC2R_ALPHA_FORMATTED="${SWC2R_ALPHA_VAL}.0"
+        if [[ "$C2R_ALPHA_VAL" =~ ^[0-9]+$ ]]; then
+            C2R_ALPHA_FORMATTED="${C2R_ALPHA_VAL}.0"
         else
-            SWC2R_ALPHA_FORMATTED="$SWC2R_ALPHA_VAL"
+            C2R_ALPHA_FORMATTED="$C2R_ALPHA_VAL"
         fi
-        LAMBDA_SUFFIX="${LAMBDA_SUFFIX}_alpha${SWC2R_ALPHA_FORMATTED}"
+        LAMBDA_SUFFIX="${LAMBDA_SUFFIX}_alpha${C2R_ALPHA_FORMATTED}"
     fi
 
-    # Process swc2r_tau parameter
-    SWC2R_TAU_VAL=$(echo "$CMD" | grep -oP "(?<=--swc2r_tau )[^ ]+" || true)
-    if [ -n "$SWC2R_TAU_VAL" ]; then
-        LAMBDA_SUFFIX="${LAMBDA_SUFFIX}_tau${SWC2R_TAU_VAL}"
-    fi
-
-    # Process swc2r_type parameter
-    SWC2R_TYPE_VAL=$(echo "$CMD" | grep -oP "(?<=--swc2r_type )[^ ]+" || true)
-    if [ -n "$SWC2R_TYPE_VAL" ]; then
-        LAMBDA_SUFFIX="${LAMBDA_SUFFIX}_${SWC2R_TYPE_VAL}"
-    fi
 
     DTYPE_SUFFIX="_${DTYPE}"
 

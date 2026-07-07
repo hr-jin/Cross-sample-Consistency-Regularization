@@ -17,7 +17,7 @@ from ..trainers.trainer import (
     set_decoder_norm_to_unit_norm,
     remove_gradient_parallel_to_decoder_directions,
 )
-from ..trainers.standard import square_weighted_c2r_loss
+from ..trainers.standard import compute_c2r_loss
 
 
 @t.no_grad()
@@ -161,10 +161,8 @@ class TopKTrainer(SAETrainer):
         lm_name: str,
         dict_class: type = AutoEncoderTopK,
         lr: Optional[float] = None,
-        swc2r_penalty:float = 0.0,
-        swc2r_alpha:float = 1.0,
-        swc2r_tau:float = 0.95,
-        swc2r_type:str = "topTauPerFeatSquare",
+        c2r_penalty:float = 0.0,
+        c2r_alpha:float = 1.0,
         aux_loss_start_step: int = 0,
         aux_loss_interval: int = 1,
         auxk_alpha: float = 1 / 32,
@@ -197,10 +195,8 @@ class TopKTrainer(SAETrainer):
         self.threshold_beta = threshold_beta
         self.threshold_start_step = threshold_start_step
         self.k_anneal_steps = k_anneal_steps
-        self.swc2r_penalty = swc2r_penalty
-        self.swc2r_alpha = swc2r_alpha
-        self.swc2r_tau = swc2r_tau
-        self.swc2r_type = swc2r_type
+        self.c2r_penalty = c2r_penalty
+        self.c2r_alpha = c2r_alpha
         self.aux_loss_start_step = aux_loss_start_step
         self.aux_loss_interval = aux_loss_interval
 
@@ -360,11 +356,11 @@ class TopKTrainer(SAETrainer):
                 apply_aux_loss = True
                 aux_loss_multiplier = float(self.aux_loss_interval)
 
-        if self.swc2r_penalty > 0 and apply_aux_loss:
-            swc2r_loss = square_weighted_c2r_loss(f, self.ae.decoder.weight.T, self.swc2r_alpha, self.swc2r_tau, self.swc2r_type)
-            loss += self.swc2r_penalty * swc2r_loss * aux_loss_multiplier
+        if self.c2r_penalty > 0 and apply_aux_loss:
+            c2r_loss = compute_c2r_loss(f, self.ae.decoder.weight.T, self.c2r_alpha)
+            loss += self.c2r_penalty * c2r_loss * aux_loss_multiplier
         else:
-            swc2r_loss = t.tensor(0.0)
+            c2r_loss = t.tensor(0.0)
 
         
         if not logging:
@@ -377,7 +373,7 @@ class TopKTrainer(SAETrainer):
                 {
                     "l2_loss": l2_loss.item(),
                     "auxk_loss": auxk_loss.item(),
-                    "swc2r_loss": swc2r_loss.item(),
+                    "c2r_loss": c2r_loss.item(),
                     "loss": loss.item(),
                 },
             )
@@ -434,10 +430,8 @@ class TopKTrainer(SAETrainer):
             "submodule_name": self.submodule_name,
             "buffer_tokens": self.buffer_tokens,
             "batch_tokens": self.batch_tokens,
-            "swc2r_penalty": self.swc2r_penalty,
-            "swc2r_alpha": self.swc2r_alpha,
-            "swc2r_tau": self.swc2r_tau,
-            "swc2r_type": self.swc2r_type,
+            "c2r_penalty": self.c2r_penalty,
+            "c2r_alpha": self.c2r_alpha,
             "aux_loss_start_step": self.aux_loss_start_step,
             "aux_loss_interval": self.aux_loss_interval,
         }

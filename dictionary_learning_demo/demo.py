@@ -45,10 +45,8 @@ def get_args():
     parser.add_argument("--target_gb", type=float, default=40, help="target GPU memory in GB")
     parser.add_argument("--target_l0s", type=str, default=None, help="target l0s")
     parser.add_argument("--target_l1s", type=str, default=None, help="target l1s")
-    parser.add_argument("--lambda_swc2r", type=str, default=None, help="lambda swc2r")
-    parser.add_argument("--swc2r_alpha", type=float, default=1.0, help="swc2r alpha")
-    parser.add_argument("--swc2r_tau", type=float, default=0.95, help="swc2r tau")
-    parser.add_argument("--swc2r_type", type=str, default="topTauPerFeatSquare", help="swc2r type")
+    parser.add_argument("--lambda_c2r", type=str, default=None, help="lambda c2r")
+    parser.add_argument("--c2r_alpha", type=float, default=1.0, help="c2r alpha")
     parser.add_argument("--aux_loss_start_step", type=int, default=0, help="aux loss start step")
     parser.add_argument("--aux_loss_interval", type=int, default=1, help="aux loss interval")
     parser.add_argument("--dtype", type=str, default="float32", help="dtype")
@@ -82,10 +80,8 @@ def run_sae_training(
     wandb_project: str = "sae-sweep",
     target_l0s: list[int] = None,
     target_l1s: list[float] = None,
-    lambda_swc2r: list[float] = None,
-    swc2r_alpha: float = 1.0,
-    swc2r_tau: float = 0.95,
-    swc2r_type: str = "topTauPerFeatSquare",
+    lambda_c2r: list[float] = None,
+    c2r_alpha: float = 1.0,
     aux_loss_start_step: int = 0,
     aux_loss_interval: int = 1,
     dtype_str: str = "float32",
@@ -95,9 +91,7 @@ def run_sae_training(
     random.seed(demo_config.random_seeds[0])
     t.manual_seed(demo_config.random_seeds[0])
 
-    if lambda_swc2r: demo_config.SPARSITY_PENALTIES.lambda_swc2r = lambda_swc2r
-    if args.swc2r_tau: demo_config.SPARSITY_PENALTIES.swc2r_tau = [args.swc2r_tau]
-    if args.swc2r_type: demo_config.SPARSITY_PENALTIES.swc2r_type = [args.swc2r_type]
+    if lambda_c2r: demo_config.SPARSITY_PENALTIES.lambda_c2r = lambda_c2r
 
     context_length = demo_config.LLM_CONFIG[model_name].context_length
 
@@ -208,9 +202,7 @@ def run_sae_training(
         aux_loss_interval=aux_loss_interval,
         target_l0s=target_l0s,
         target_l1s=target_l1s,
-        swc2r_alpha=swc2r_alpha,
-        swc2r_tau=swc2r_tau,
-        swc2r_type=swc2r_type,
+        c2r_alpha=c2r_alpha,
     )
 
     print(f"len trainer configs: {len(trainer_configs)}")
@@ -260,14 +252,12 @@ if __name__ == "__main__":
 
     target_l0s = ast.literal_eval(args.target_l0s) if args.target_l0s else None
     target_l1s = ast.literal_eval(args.target_l1s) if args.target_l1s else None
-    lambda_swc2r = ast.literal_eval(args.lambda_swc2r) if args.lambda_swc2r else None
+    lambda_c2r = ast.literal_eval(args.lambda_c2r) if args.lambda_c2r else None
 
     lambda_suffix = ""
-    if lambda_swc2r and lambda_swc2r != [0.0]:
-        lambda_suffix += f"_swc2r{lambda_swc2r[0]}"
-        lambda_suffix += f"_alpha{args.swc2r_alpha}"
-        lambda_suffix += f"_tau{args.swc2r_tau}"
-        lambda_suffix += f"_{args.swc2r_type}"
+    if lambda_c2r and lambda_c2r != [0.0]:
+        lambda_suffix += f"_c2r{lambda_c2r[0]}"
+        lambda_suffix += f"_alpha{args.c2r_alpha}"
 
     dtype_suffix = f"_{args.dtype}"
 
@@ -296,10 +286,8 @@ if __name__ == "__main__":
             wandb_project=args.wandb_project,
             target_l0s=target_l0s,
             target_l1s=target_l1s,
-            lambda_swc2r=lambda_swc2r,
-            swc2r_alpha=args.swc2r_alpha,
-            swc2r_tau=args.swc2r_tau,
-            swc2r_type=args.swc2r_type,
+            lambda_c2r=lambda_c2r,
+            c2r_alpha=args.c2r_alpha,
             aux_loss_start_step=args.aux_loss_start_step,
             aux_loss_interval=args.aux_loss_interval,
             dtype_str=args.dtype,

@@ -60,9 +60,7 @@ class SparsityPenalties:
     gated: list[float]
 
 
-    lambda_swc2r: list[float]
-    swc2r_tau: list[float]
-    swc2r_type: list[str]
+    lambda_c2r: list[float]
 
 
 num_tokens = 500_000_000
@@ -120,9 +118,7 @@ SPARSITY_PENALTIES = SparsityPenalties(
     standard_new=[0.0],
     p_anneal=[0.006, 0.008, 0.01, 0.015, 0.02, 0.025],
     gated=[0.012, 0.018, 0.024, 0.04, 0.06, 0.08],
-    lambda_swc2r=[0.0],
-    swc2r_tau=[0.95],
-    swc2r_type=['topTauPerFeatSquare'],
+    lambda_c2r=[0.0],
 )
 
 
@@ -158,10 +154,7 @@ class StandardTrainerConfig(BaseTrainerConfig):
     sparsity_warmup_steps: Optional[int]
     resample_steps: Optional[int] = None
     c2r_penalty: float = 0.0
-    swc2r_penalty: float = 0.0
-    swc2r_alpha: float = 1.0
-    swc2r_tau: float = 0.95
-    swc2r_type: str = "topTauPerFeatSquare"
+    c2r_alpha: float = 1.0
 
 
 
@@ -173,10 +166,7 @@ class StandardNewTrainerConfig(BaseTrainerConfig):
     l1_penalty: float
     sparsity_warmup_steps: Optional[int]
     c2r_penalty: float = 0.0
-    swc2r_penalty: float = 0.0
-    swc2r_alpha: float = 1.0
-    swc2r_tau: float = 0.95
-    swc2r_type: str = "topTauPerFeatSquare"
+    c2r_alpha: float = 1.0
 
 
 
@@ -194,7 +184,7 @@ class PAnnealTrainerConfig(BaseTrainerConfig):
     anneal_end: Optional[int] = None
     sparsity_queue_length: int = 10
     n_sparsity_updates: int = 10
-    swc2r_penalty: float = 0.0
+    c2r_penalty: float = 0.0
 
 
 @dataclass
@@ -208,10 +198,7 @@ class TopKTrainerConfig(BaseTrainerConfig):
     threshold_start_step: int = 1000
     k_anneal_steps: Optional[int] = None
     c2r_penalty: float = 0.0
-    swc2r_penalty: float = 0.0
-    swc2r_alpha: float = 1.0
-    swc2r_tau: float = 0.95
-    swc2r_type: str = "topTauPerFeatSquare"
+    c2r_alpha: float = 1.0
 
 
 
@@ -232,10 +219,7 @@ class MatryoshkaBatchTopKTrainerConfig(BaseTrainerConfig):
     threshold_start_step: int = 1000
     k_anneal_steps: Optional[int] = None
     c2r_penalty: float = 0.0
-    swc2r_penalty: float = 0.0
-    swc2r_alpha: float = 1.0
-    swc2r_tau: float = 0.95
-    swc2r_type: str = "topTauPerFeatSquare"
+    c2r_alpha: float = 1.0
 
 
 
@@ -247,10 +231,7 @@ class GatedTrainerConfig(BaseTrainerConfig):
     l1_penalty: float
     sparsity_warmup_steps: Optional[int]
     c2r_penalty: float = 0.0
-    swc2r_penalty: float = 0.0
-    swc2r_alpha: float = 1.0
-    swc2r_tau: float = 0.95
-    swc2r_type: str = "topTauPerFeatSquare"
+    c2r_alpha: float = 1.0
 
 
 
@@ -264,10 +245,7 @@ class JumpReluTrainerConfig(BaseTrainerConfig):
     sparsity_penalty: float = 1.0
     bandwidth: float = 0.001
     c2r_penalty: float = 0.0
-    swc2r_penalty: float = 0.0
-    swc2r_alpha: float = 1.0
-    swc2r_tau: float = 0.95
-    swc2r_type: str = "topTauPerFeatSquare"
+    c2r_alpha: float = 1.0
 
 
 
@@ -281,10 +259,7 @@ class OrtTrainerConfig(BaseTrainerConfig):
     chunk_size: int
     k_anneal_steps: Optional[int] = None
     c2r_penalty: float = 0.0
-    swc2r_penalty: float = 0.0
-    swc2r_alpha: float = 1.0
-    swc2r_tau: float = 0.95
-    swc2r_type: str = "topTauPerFeatSquare"
+    c2r_alpha: float = 1.0
 
 
 
@@ -310,9 +285,7 @@ def get_trainer_configs(
     aux_loss_interval: int = 1,
     target_l0s: list[int] = None,
     target_l1s: list[float] = None,
-    swc2r_alpha: float = 1.0,
-    swc2r_tau: float = 0.95,
-    swc2r_type: str = "topTauPerFeatSquare",
+    c2r_alpha: float = 1.0,
 ) -> list[dict]:
     if target_l0s is None:
         target_l0s = TARGET_L0s
@@ -341,8 +314,8 @@ def get_trainer_configs(
         "aux_loss_interval": aux_loss_interval,
     }
     if TrainerType.P_ANNEAL.value in architectures:
-        for seed, dict_size, learning_rate, sparsity_penalty, swc2r_penalty in itertools.product(
-            seeds, dict_sizes, learning_rates, SPARSITY_PENALTIES.p_anneal, SPARSITY_PENALTIES.lambda_swc2r
+        for seed, dict_size, learning_rate, sparsity_penalty, c2r_penalty in itertools.product(
+            seeds, dict_sizes, learning_rates, SPARSITY_PENALTIES.p_anneal, SPARSITY_PENALTIES.lambda_c2r
         ):
             config = PAnnealTrainerConfig(
                 **base_config,
@@ -353,16 +326,16 @@ def get_trainer_configs(
                 dict_size=dict_size,
                 seed=seed,
                 initial_sparsity_penalty=sparsity_penalty,
-                swc2r_penalty=swc2r_penalty,
+                c2r_penalty=c2r_penalty,
                 wandb_name=f"PAnnealTrainer-{model_name}-{submodule_name}",
             )
             trainer_configs.append(asdict(config))
 
     if TrainerType.STANDARD.value in architectures:
-        for seed, dict_size, learning_rate, l1_penalty, swc2r_penalty, swc2r_tau, swc2r_type in itertools.product(
-            seeds, dict_sizes, learning_rates, SPARSITY_PENALTIES.standard, SPARSITY_PENALTIES.lambda_swc2r, SPARSITY_PENALTIES.swc2r_tau, SPARSITY_PENALTIES.swc2r_type
+        for seed, dict_size, learning_rate, l1_penalty, c2r_penalty in itertools.product(
+            seeds, dict_sizes, learning_rates, SPARSITY_PENALTIES.standard, SPARSITY_PENALTIES.lambda_c2r
         ):
-            if swc2r_penalty == 0:
+            if c2r_penalty == 0:
                 wandb_name = f"StandardTrainer-{model_name}-{submodule_name}"
             else:
                 wandb_name = f"CoStandardTrainer-{model_name}-{submodule_name}"
@@ -376,19 +349,17 @@ def get_trainer_configs(
                 dict_size=dict_size,
                 seed=seed,
                 l1_penalty=l1_penalty,
-                swc2r_penalty=swc2r_penalty,
-                swc2r_alpha=swc2r_alpha,
-                swc2r_tau=swc2r_tau,
-                swc2r_type=swc2r_type,
+                c2r_penalty=c2r_penalty,
+                c2r_alpha=c2r_alpha,
                 wandb_name=wandb_name,
             )
             trainer_configs.append(asdict(config))
 
     if TrainerType.STANDARD_NEW.value in architectures:
-        for seed, dict_size, learning_rate, l1_penalty, swc2r_penalty, swc2r_tau, swc2r_type,  in itertools.product(
-            seeds, dict_sizes, learning_rates, SPARSITY_PENALTIES.standard_new, SPARSITY_PENALTIES.lambda_swc2r, SPARSITY_PENALTIES.swc2r_tau, SPARSITY_PENALTIES.swc2r_type
+        for seed, dict_size, learning_rate, l1_penalty, c2r_penalty in itertools.product(
+            seeds, dict_sizes, learning_rates, SPARSITY_PENALTIES.standard_new, SPARSITY_PENALTIES.lambda_c2r
         ):
-            if swc2r_penalty == 0 :
+            if c2r_penalty == 0 :
                 wandb_name = f"StandardTrainerNew-{model_name}-{submodule_name}"
             else:
                 wandb_name = f"CoStandardTrainerNew-{model_name}-{submodule_name}"
@@ -402,19 +373,17 @@ def get_trainer_configs(
                 dict_size=dict_size,
                 seed=seed,
                 l1_penalty=l1_penalty,
-                swc2r_penalty=swc2r_penalty,
-                swc2r_alpha=swc2r_alpha,
-                swc2r_tau=swc2r_tau,
-                swc2r_type=swc2r_type,
+                c2r_penalty=c2r_penalty,
+                c2r_alpha=c2r_alpha,
                 wandb_name=wandb_name,
             )
             trainer_configs.append(asdict(config))
 
     if TrainerType.GATED.value in architectures:
-        for seed, dict_size, learning_rate, l1_penalty, swc2r_penalty, swc2r_tau, swc2r_type in itertools.product(
-            seeds, dict_sizes, learning_rates, SPARSITY_PENALTIES.gated, SPARSITY_PENALTIES.lambda_swc2r, SPARSITY_PENALTIES.swc2r_tau, SPARSITY_PENALTIES.swc2r_type
+        for seed, dict_size, learning_rate, l1_penalty, c2r_penalty in itertools.product(
+            seeds, dict_sizes, learning_rates, SPARSITY_PENALTIES.gated, SPARSITY_PENALTIES.lambda_c2r
         ):
-            if swc2r_penalty == 0:
+            if c2r_penalty == 0:
                 wandb_name = f"GatedTrainer-{model_name}-{submodule_name}"
             else:
                 wandb_name = f"CoGatedTrainer-{model_name}-{submodule_name}"
@@ -428,19 +397,17 @@ def get_trainer_configs(
                 dict_size=dict_size,
                 seed=seed,
                 l1_penalty=l1_penalty,
-                swc2r_penalty=swc2r_penalty,
-                swc2r_alpha=swc2r_alpha,
-                swc2r_tau=swc2r_tau,
-                swc2r_type=swc2r_type,
+                c2r_penalty=c2r_penalty,
+                c2r_alpha=c2r_alpha,
                 wandb_name=wandb_name,
             )
             trainer_configs.append(asdict(config))
 
     if TrainerType.TOP_K.value in architectures:
-        for seed, dict_size, learning_rate, k, swc2r_penalty, swc2r_tau, swc2r_type in itertools.product(
-            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_swc2r, SPARSITY_PENALTIES.swc2r_tau, SPARSITY_PENALTIES.swc2r_type
+        for seed, dict_size, learning_rate, k, c2r_penalty in itertools.product(
+            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_c2r
         ):
-            if swc2r_penalty == 0:
+            if c2r_penalty == 0:
                 wandb_name = f"TopKTrainer-{model_name}-{submodule_name}"
             else:
                 wandb_name = f"CoTopKTrainer-{model_name}-{submodule_name}"
@@ -453,20 +420,18 @@ def get_trainer_configs(
                 dict_size=dict_size,
                 seed=seed,
                 k=k,
-                swc2r_penalty=swc2r_penalty,
-                swc2r_alpha=swc2r_alpha,
-                swc2r_tau=swc2r_tau,
-                swc2r_type=swc2r_type,
+                c2r_penalty=c2r_penalty,
+                c2r_alpha=c2r_alpha,
                 k_anneal_steps=anneal_end,
                 wandb_name=wandb_name,
             )
             trainer_configs.append(asdict(config))
 
     if TrainerType.BATCH_TOP_K.value in architectures:
-        for seed, dict_size, learning_rate, k, swc2r_penalty, swc2r_tau, swc2r_type in itertools.product(
-            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_swc2r, SPARSITY_PENALTIES.swc2r_tau, SPARSITY_PENALTIES.swc2r_type
+        for seed, dict_size, learning_rate, k, c2r_penalty in itertools.product(
+            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_c2r
         ):
-            if swc2r_penalty == 0:
+            if c2r_penalty == 0:
                 wandb_name = f"BatchTopKTrainer-{model_name}-{submodule_name}"
             else:
                 wandb_name = f"CoBatchTopKTrainer-{model_name}-{submodule_name}"
@@ -479,20 +444,18 @@ def get_trainer_configs(
                 dict_size=dict_size,
                 seed=seed,
                 k=k,
-                swc2r_penalty=swc2r_penalty,
-                swc2r_alpha=swc2r_alpha,
-                swc2r_tau=swc2r_tau,
-                swc2r_type=swc2r_type,
+                c2r_penalty=c2r_penalty,
+                c2r_alpha=c2r_alpha,
                 k_anneal_steps=anneal_end,
                 wandb_name=wandb_name,
             )
             trainer_configs.append(asdict(config))
 
     if TrainerType.Matryoshka_BATCH_TOP_K.value in architectures:
-        for seed, dict_size, learning_rate, k, swc2r_penalty, swc2r_tau, swc2r_type in itertools.product(
-            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_swc2r, SPARSITY_PENALTIES.swc2r_tau, SPARSITY_PENALTIES.swc2r_type
+        for seed, dict_size, learning_rate, k, c2r_penalty in itertools.product(
+            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_c2r
         ):
-            if swc2r_penalty == 0:
+            if c2r_penalty == 0:
                 wandb_name = f"MatryoshkaBatchTopKTrainer-{model_name}-{submodule_name}"
             else:
                 wandb_name = f"CoMatryoshkaBatchTopKTrainer-{model_name}-{submodule_name}"
@@ -505,20 +468,18 @@ def get_trainer_configs(
                 dict_size=dict_size,
                 seed=seed,
                 k=k,
-                swc2r_penalty=swc2r_penalty,
-                swc2r_alpha=swc2r_alpha,
-                swc2r_tau=swc2r_tau,
-                swc2r_type=swc2r_type,
+                c2r_penalty=c2r_penalty,
+                c2r_alpha=c2r_alpha,
                 k_anneal_steps=anneal_end,
                 wandb_name=wandb_name,
             )
             trainer_configs.append(asdict(config))
 
     if TrainerType.JUMP_RELU.value in architectures:
-        for seed, dict_size, learning_rate, target_l0, swc2r_penalty, swc2r_tau, swc2r_type in itertools.product(
-            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_swc2r, SPARSITY_PENALTIES.swc2r_tau, SPARSITY_PENALTIES.swc2r_type
+        for seed, dict_size, learning_rate, target_l0, c2r_penalty in itertools.product(
+            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_c2r
         ):
-            if swc2r_penalty == 0:
+            if c2r_penalty == 0:
                 wandb_name = f"JumpReluTrainer-{model_name}-{submodule_name}"
             else:
                 wandb_name = f"CoJumpReluTrainer-{model_name}-{submodule_name}"
@@ -532,19 +493,17 @@ def get_trainer_configs(
                 dict_size=dict_size,
                 seed=seed,
                 target_l0=target_l0,
-                swc2r_penalty=swc2r_penalty,
-                swc2r_alpha=swc2r_alpha,
-                swc2r_tau=swc2r_tau,
-                swc2r_type=swc2r_type,
+                c2r_penalty=c2r_penalty,
+                c2r_alpha=c2r_alpha,
                 wandb_name=wandb_name,
             )
             trainer_configs.append(asdict(config))
 
     if TrainerType.ORT.value in architectures:
-        for seed, dict_size, learning_rate, k, swc2r_penalty, swc2r_tau, swc2r_type in itertools.product(
-            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_swc2r, SPARSITY_PENALTIES.swc2r_tau, SPARSITY_PENALTIES.swc2r_type
+        for seed, dict_size, learning_rate, k, c2r_penalty in itertools.product(
+            seeds, dict_sizes, learning_rates, target_l0s, SPARSITY_PENALTIES.lambda_c2r
         ):
-            if swc2r_penalty == 0:
+            if c2r_penalty == 0:
                 wandb_name = f"OrtTrainer-{model_name}-{submodule_name}"
             else:
                 wandb_name = f"CoOrtTrainer-{model_name}-{submodule_name}"
@@ -560,10 +519,8 @@ def get_trainer_configs(
                 orthogonality_penalty=0.25,
                 chunk_size=8192,
                 k_anneal_steps=anneal_end,
-                swc2r_penalty=swc2r_penalty,
-                swc2r_alpha=swc2r_alpha,
-                swc2r_tau=swc2r_tau,
-                swc2r_type=swc2r_type,
+                c2r_penalty=c2r_penalty,
+                c2r_alpha=c2r_alpha,
                 wandb_name=wandb_name,
             )
             trainer_configs.append(asdict(config))
