@@ -5,7 +5,7 @@ Official code release for the ICML 2026 paper:
 > **C²R: Cross-sample Consistency Regularization Mitigates Feature Splitting and Absorption in Sparse Autoencoders**
 > Haoran Jin, Xiting Wang, Shijie Ren, Hong Xie, Defu Lian.
 
-Paper page: https://icml.cc/virtual/2026/poster/63626
+Paper: https://arxiv.org/abs/2606.30609
 
 ## Overview
 
